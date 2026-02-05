@@ -4,48 +4,159 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>#kidlitartpostcard – Bluesky Feed</title>
+
   <style>
-    body { margin: 0; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#111; background:#fff; }
-    .feed { max-width: 720px; margin: 0 auto; padding: 16px; }
-    .toolbar { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom: 10px; }
-    .title { font-weight: 700; }
-    .muted { font-size: 12px; opacity: .75; }
-    .post { padding: 14px 0; border-bottom: 1px solid rgba(0,0,0,.10); }
-    .handle { font-weight: 600; margin-bottom: 6px; }
-    .text { white-space: pre-wrap; margin-bottom: 8px; }
-    .meta { font-size: 12px; opacity: .75; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .meta a { color: inherit; }
-    button, select { padding: 10px 12px; font-size: 14px; cursor: pointer; }
-    button[disabled] { opacity: .6; cursor: default; }
-    .error { color:#b00; font-size: 13px; margin: 10px 0; }
+    :root{
+      --max-width:720px;
+      --muted:#6b7280;
+      --card-border: rgba(15,23,42,0.06);
+      --radius:10px;
+      --gap:12px;
+    }
+    html,body{height:100%;}
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:#0f172a;
+      background: #fff;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.35;
+    }
+
+    .wrap {
+      max-width: var(--max-width);
+      margin: 20px auto;
+      padding: 18px;
+    }
+
+    .header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 12px;
+    }
+
+    .brand {
+      display:flex;
+      flex-direction:column;
+    }
+
+    .title {
+      font-weight:700;
+      font-size:18px;
+    }
+
+    .subtitle { color:var(--muted); font-size:13px; margin-top:6px; }
+
+    .controls {
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    select, button {
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid var(--card-border);
+      background:white;
+      font-size:14px;
+      cursor:pointer;
+    }
+    button[disabled] { opacity:.6; cursor:default; }
+
+    #status { font-size:13px; color:var(--muted); margin-bottom:8px; min-height:18px; }
+
+    .posts {
+      display:block;
+      gap:16px;
+    }
+
+    .post {
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,1), rgba(250,250,250,1));
+    }
+
+    .meta {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:13px;
+      margin-top:8px;
+      flex-wrap:wrap;
+    }
+
+    .handle { font-weight:600; margin-bottom:6px; }
+
+    .text { white-space:pre-wrap; margin-bottom:8px; font-size:15px; color:#0f172a; }
+
+    .gallery {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:8px;
+    }
+
+    .gallery img {
+      width:160px;
+      height:160px;
+      object-fit:cover;
+      border-radius:8px;
+      box-shadow:0 6px 18px rgba(10,10,10,0.04);
+      border:1px solid rgba(0,0,0,0.03);
+      background: #f8fafc;
+    }
+
+    .error {
+      color:#b91c1c;
+      font-size:13px;
+      margin: 8px 0;
+    }
+
+    footer { margin-top:20px; color:var(--muted); font-size:13px; }
+    @media (max-width:520px){
+      .gallery img { width:120px; height:120px; }
+    }
   </style>
 </head>
 <body>
-  <div class="feed">
-    <div class="toolbar">
-      <div>
+  <div class="wrap">
+    <div class="header">
+      <div class="brand">
         <div class="title">#kidlitartpostcard</div>
-        <div class="muted">Powered by Bluesky search via Netlify Function</div>
+        <div class="subtitle">Curated feed — art-first. Powered by Bluesky via Netlify functions.</div>
       </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <label class="muted" for="sort">Sort</label>
-        <select id="sort">
-          <option value="top" selected>Most popular</option>
+
+      <div class="controls">
+        <label for="sort" style="font-size:13px;color:var(--muted);margin-right:6px;">Sort</label>
+        <select id="sort" aria-label="Sort posts">
+          <option value="top">Most popular</option>
           <option value="latest">Latest</option>
         </select>
+
         <button id="loadMore" type="button">Load more</button>
       </div>
     </div>
 
-    <div id="status" class="muted"></div>
-    <div id="error" class="error" style="display:none;"></div>
-    <div id="posts"></div>
+    <div id="status"></div>
+    <div id="error" class="error" style="display:none"></div>
+
+    <div id="posts" class="posts" aria-live="polite"></div>
+
+    <footer>
+      Tip: images are proxied via the site to avoid CORS and to cache blobs. If images fail, check that your Netlify function <code>blob</code> is deployed and env vars are set.
+    </footer>
   </div>
 
   <script>
-    (() => {
+    (function(){
       const HASHTAG = "kidlitartpostcard";
-      const LIMIT = 25;
+      const LIMIT = 20;
 
       const postsEl = document.getElementById("posts");
       const statusEl = document.getElementById("status");
@@ -57,160 +168,210 @@
       let loading = false;
       let seenUris = new Set();
 
-      function escapeHtml(str) {
-        return (str ?? "")
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;")
+      function setStatus(msg){
+        statusEl.textContent = msg || "";
+      }
+      function setError(msg){
+        if(!msg){ errorEl.style.display = "none"; errorEl.textContent = ""; return; }
+        errorEl.style.display = "block"; errorEl.textContent = msg;
+      }
+
+      function escapeHtml(s){
+        return String(s || "")
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;")
+          .replaceAll('"',"&quot;")
           .replaceAll("'", "&#039;");
       }
 
-      function setError(msg) {
-        if (!msg) {
-          errorEl.style.display = "none";
-          errorEl.textContent = "";
-          return;
-        }
-        errorEl.style.display = "block";
-        errorEl.textContent = msg;
-      }
-
-      function setStatus(msg) {
-        statusEl.textContent = msg ?? "";
-      }
-
-      async function fetchPage() {
-        // IMPORTANT: This calls your Netlify Function:
-        // /.netlify/functions/hashtag  (not Bluesky directly)
-        const url = new URL("/.netlify/functions/hashtag", window.location.origin);
-        url.searchParams.set("tag", HASHTAG);
-        url.searchParams.set("sort", sortSel.value); // "top" or "latest"
-        url.searchParams.set("limit", String(LIMIT));
-        if (cursor) url.searchParams.set("cursor", cursor);
-
-        const res = await fetch(url.toString(), { method: "GET" });
-        const text = await res.text();
-
-        if (!res.ok) {
-          // try to show server-provided error JSON if present
-          try {
-            const j = JSON.parse(text);
-            throw new Error(j?.error || `Request failed: ${res.status}`);
-          } catch {
-            throw new Error(`Request failed: ${res.status}`);
-          }
-        }
-
-        try {
-          return JSON.parse(text);
-        } catch {
-          throw new Error("Bad JSON response from Netlify Function");
-        }
-      }
-
-      function didFromUri(uri) {
-        // at://did:plc:.../app.bsky.feed.post/xxxx
-        const m = String(uri || "").match(/^at:\/\/([^/]+)\//);
+      // Utilities to build post web link
+      function didFromUri(uri){
+        const m = String(uri||"").match(/^at:\/\/([^/]+)\//);
         return m ? m[1] : null;
       }
-
-      function postLinkFromUri(uri) {
+      function postLinkFromUri(uri){
         const did = didFromUri(uri);
-        const rkey = String(uri || "").split("/").pop();
-        if (!did || !rkey) return null;
-        // Bluesky web URL format
+        const rkey = String(uri||"").split("/").pop();
+        if(!did || !rkey) return null;
         return `https://bsky.app/profile/${did}/post/${rkey}`;
       }
 
-      function render(posts) {
+      // Extract possible image cids from a post object (defensive)
+      function findImageCidsFromPost(p){
+        const results = []; // {did, cid, alt, mimeType}
+
+        // Common embed format: p.record.embed.images -> [{image:{cid:...}, alt:...}, ...]
+        try {
+          const embed = p.record?.embed;
+          if(embed && Array.isArray(embed.images)){
+            for(const img of embed.images){
+              const maybe = img.image || img;
+              const cid = maybe?.cid || maybe?.ref || maybe?.blobCid || null;
+              const mime = maybe?.mimeType || maybe?.type || null;
+              const alt = img?.alt || maybe?.alt || "";
+              if(cid) results.push({ cid, alt, mime });
+            }
+          }
+
+          // Alternate shapes: attachments, media, record.attachments
+          const attachments = p.record?.attachments ?? p.record?.media ?? null;
+          if(attachments && Array.isArray(attachments)){
+            for(const att of attachments){
+              const cid = att?.image?.cid || att?.cid || att?.blobCid || att?.ref || null;
+              const mime = att?.mimeType || att?.type || null;
+              const alt = att?.alt || "";
+              if(cid) results.push({ cid, alt, mime });
+            }
+          }
+        } catch(e){
+          // tolerate unexpected shapes
+          console.warn("image parse error", e);
+        }
+
+        // attach did from post author/detected uri
+        const did = p.author?.did || didFromUri(p.uri) || null;
+        return results.map(r => ({ ...r, did }));
+      }
+
+      // build blob proxy URL
+      function blobUrlFor(did, cid){
+        if(!did || !cid) return "";
+        // encode components
+        return `/.netlify/functions/blob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(cid)}`;
+      }
+
+      // Render posts
+      function render(posts){
         let added = 0;
-
-        for (const p of posts ?? []) {
+        for(const p of posts || []){
           const uri = p.uri || "";
-          if (uri && seenUris.has(uri)) continue;
-          if (uri) seenUris.add(uri);
+          if(uri && seenUris.has(uri)) continue;
+          if(uri) seenUris.add(uri);
 
-          const handle = p.author?.handle ?? "unknown";
-          const text = p.record?.text ?? "";
+          const handle = p.author?.handle || "unknown";
+          const text = p.record?.text || "";
           const likes = p.likeCount ?? 0;
           const reposts = p.repostCount ?? 0;
           const replies = p.replyCount ?? 0;
           const link = postLinkFromUri(uri);
 
-          const el = document.createElement("div");
-          el.className = "post";
-          el.innerHTML = `
-            <div class="handle">@${escapeHtml(handle)}</div>
-            <div class="text">${escapeHtml(text)}</div>
-            <div class="meta">
-              <span>❤️ ${likes}</span>
-              <span>🔁 ${reposts}</span>
-              <span>💬 ${replies}</span>
-              ${link ? `<span><a href="${link}" target="_blank" rel="noopener">Open</a></span>` : ""}
-            </div>
-          `;
+          const postEl = document.createElement("article");
+          postEl.className = "post";
 
-          postsEl.appendChild(el);
+          // Compose HTML
+          let html = `<div class="handle">@${escapeHtml(handle)}</div>`;
+          if(text) html += `<div class="text">${escapeHtml(text)}</div>`;
+
+          // images
+          const imgs = findImageCidsFromPost(p);
+          if(imgs.length){
+            html += `<div class="gallery">`;
+            for(const im of imgs){
+              const src = blobUrlFor(im.did, im.cid);
+              const alt = escapeHtml(im.alt || "");
+              if(src){
+                html += `<img src="${src}" loading="lazy" alt="${alt}" />`;
+              }
+            }
+            html += `</div>`;
+          }
+
+          html += `<div class="meta">`;
+          html += `<span>❤️ ${likes}</span>`;
+          html += `<span>🔁 ${reposts}</span>`;
+          html += `<span>💬 ${replies}</span>`;
+          if(link) html += `<span><a href="${link}" target="_blank" rel="noopener">Open</a></span>`;
+          html += `</div>`;
+
+          postEl.innerHTML = html;
+          postsEl.appendChild(postEl);
           added++;
         }
-
         return added;
       }
 
-      async function loadMore() {
-        if (loading) return;
+      // Fetch one page from our Netlify function proxying searchPosts
+      async function fetchPage(){
+        const url = new URL("/.netlify/functions/hashtag", window.location.origin);
+        url.searchParams.set("tag", HASHTAG);
+        url.searchParams.set("q", HASHTAG);
+        url.searchParams.set("sort", sortSel.value || "top");
+        url.searchParams.set("limit", String(LIMIT));
+        if(cursor) url.searchParams.set("cursor", cursor);
+
+        const res = await fetch(url.toString(), { method: "GET" });
+        const text = await res.text().catch(()=>"");
+        if(!res.ok){
+          // try to parse server-provided JSON error
+          try {
+            const j = JSON.parse(text);
+            throw new Error(j?.error || `Request failed: ${res.status}`);
+          } catch(e){
+            throw new Error(`Request failed: ${res.status}`);
+          }
+        }
+        try {
+          return JSON.parse(text);
+        } catch(e){
+          throw new Error("Bad JSON from hashtag function");
+        }
+      }
+
+      async function loadMore(){
+        if(loading) return;
         loading = true;
         setError(null);
-
         loadBtn.disabled = true;
         loadBtn.textContent = "Loading…";
         setStatus("Fetching posts…");
 
         try {
           const data = await fetchPage();
-          const added = render(data.posts);
+          const posts = data.posts || data?.posts ?? [];
+          const added = render(posts);
+
+          // update cursor
           cursor = data.cursor ?? null;
 
-          if (!added && cursor) {
-            // Sometimes you can get duplicates between pages; try one more page automatically
+          // handle edge cases where page returned only duplicates
+          if(!added && cursor){
+            // attempt one more page automatically (rare)
             const data2 = await fetchPage();
-            const added2 = render(data2.posts);
+            render(data2.posts || []);
             cursor = data2.cursor ?? cursor;
-            setStatus(added2 ? "" : "No new posts found.");
-          } else {
-            setStatus("");
           }
 
-          if (!cursor) {
+          if(!cursor){
             loadBtn.textContent = "No more results";
             loadBtn.disabled = true;
           } else {
             loadBtn.textContent = "Load more";
             loadBtn.disabled = false;
           }
-        } catch (err) {
-          console.error(err);
           setStatus("");
-          setError(
-            "Couldn’t load posts. If this is a fresh deploy, confirm your Netlify Function exists at /.netlify/functions/hashtag and that BLUESKY_IDENTIFIER + BLUESKY_APP_PASSWORD env vars are set."
-          );
-          loadBtn.textContent = "Load more";
+        } catch(err){
+          console.error(err);
+          setError("Couldn’t load posts. Confirm Netlify functions exist and that env vars (BLUESKY_IDENTIFIER, BLUESKY_APP_PASSWORD) are set.");
+          setStatus("");
           loadBtn.disabled = false;
+          loadBtn.textContent = "Load more";
         } finally {
           loading = false;
         }
       }
 
-      function resetAndReload() {
+      function resetAndReload(){
         cursor = null;
         seenUris = new Set();
         postsEl.innerHTML = "";
         loadBtn.disabled = false;
         loadBtn.textContent = "Load more";
+        setError(null);
         loadMore();
       }
 
+      // events
       loadBtn.addEventListener("click", loadMore);
       sortSel.addEventListener("change", resetAndReload);
 
