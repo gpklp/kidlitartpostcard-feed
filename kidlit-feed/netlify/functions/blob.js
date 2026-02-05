@@ -52,19 +52,18 @@ exports.handler = async (event) => {
 
     const jwt = await getJwt();
 
-    // Call the repo.getBlob endpoint (returns binary)
-    const url = "https://bsky.social/xrpc/com.atproto.repo.getBlob";
-    const body = JSON.stringify({ repo: did, cid: cid });
+// Call the repo.getBlob endpoint (returns binary) — MUST be GET with query params
+const url = new URL("https://bsky.social/xrpc/com.atproto.repo.getBlob");
+url.searchParams.set("repo", did);
+url.searchParams.set("cid", cid);
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        "Content-Type": "application/json",
-        Accept: "*/*",
-      },
-      body,
-    });
+const res = await fetch(url.toString(), {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${jwt}`,
+    Accept: "*/*",
+  },
+});
 
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
