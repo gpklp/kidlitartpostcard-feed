@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>#kidlitartpostcard – Bluesky Feed</title>
+  <style>
+    body { margin: 0; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#111; background:#fff; }
+    .feed { max-width: 720px; margin: 0 auto; padding: 16px; }
+    .toolbar { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom: 10px; }
+    .title { font-weight: 700; }
+    .muted { font-size: 12px; opacity: .75; }
+    .post { padding: 14px 0; border-bottom: 1px solid rgba(0,0,0,.10); }
+    .handle { font-weight: 600; margin-bottom: 6px; }
+    .text { white-space: pre-wrap; margin-bottom: 8px; }
+    .meta { font-size: 12px; opacity: .75; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .meta a { color: inherit; }
+    button, select { padding: 10px 12px; font-size: 14px; cursor: pointer; }
+    button[disabled] { opacity: .6; cursor: default; }
+    .error { color:#b00; font-size: 13px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div class="feed">
+    <div class="toolbar">
+      <div>
+        <div class="title">#kidlitartpostcard</div>
+        <div class="muted">Powered by Bluesky search via Netlify Function</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <label class="muted" for="sort">Sort</label>
+        <select id="sort">
+          <option value="top" selected>Most popular</option>
+          <option value="latest">Latest</option>
+        </select>
+        <button id="loadMore" type="button">Load more</button>
+      </div>
+    </div>
+
+    <div id="status" class="muted"></div>
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="posts"></div>
+  </div>
+
+  <script>
+    (() => {
+      const HASHTAG = "kidlitartpostcard";
+      const LIMIT = 25;
+
+      const postsEl = document.getElementById("posts");
+      const statusEl = document.getElementById("status");
+      const errorEl = document.getElementById("error");
+      const loadBtn = document.getElementById("loadMore");
+      const sortSel = document.getElementById("sort");
+
+      let cursor = null;
+      let loading = false;
+      let seenUris = new Set();
+
+      function escapeHtml(str) {
+        return (str ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function setError(msg) {
+        if (!msg) {
+          errorEl.style.display = "none";
+          errorEl.textContent = "";
+          return;
+        }
+        errorEl.style.display = "block";
+        errorEl.textContent = msg;
+      }
+
+      function setStatus(msg) {
+        statusEl.textContent = msg ?? "";
+      }
+
+      async function fetchPage() {
+        // IMPORTANT: This calls your Netlify Function:
+        // /.netlify/functions/hashtag  (not Bluesky directly)
+        const url = new URL("/.netlify/functions/hashtag", window.location.origin);
+        url.searchParams.set("tag", HASHTAG);
+        url.searchParams.set("sort", sortSel.value); // "top" or "latest"
+        url.searchParams.set("limit", String(LIMIT));
+        if (cursor) url.searchParams.set("cursor", cursor);
+
+        const res = await fetch(url.toString(), { method: "GET" });
+        const text = await res.text();
+
+        if (!res.ok) {
+          // try to show server-provided error JSON if present
+          try {
+            const j = JSON.parse(text);
+            throw new Error(j?.error || `Request failed: ${res.status}`);
+          } catch {
+            throw new Error(`Request failed: ${res.status}`);
+          }
+        }
+
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error("Bad JSON response from Netlify Function");
+        }
+      }
+
+      function didFromUri(uri) {
+        // at://did:plc:.../app.bsky.feed.post/xxxx
+        const m = String(uri || "").match(/^at:\/\/([^/]+)\//);
+        return m ? m[1] : null;
+      }
+
+      function postLinkFromUri(uri) {
+        const did = didFromUri(uri);
+        const rkey = String(uri || "").split("/").pop();
+        if (!did || !rkey) return null;
+        // Bluesky web URL format
+        return `https://bsky.app/profile/${did}/post/${rkey}`;
+      }
+
+      function render(posts) {
+        let added = 0;
+
+        for (const p of posts ?? []) {
+          const uri = p.uri || "";
+          if (uri && seenUris.has(uri)) continue;
+          if (uri) seenUris.add(uri);
+
+          const handle = p.author?.handle ?? "unknown";
+          const text = p.record?.text ?? "";
+          const likes = p.likeCount ?? 0;
+          const reposts = p.repostCount ?? 0;
+          const replies = p.replyCount ?? 0;
+          const link = postLinkFromUri(uri);
+
+          const el = document.createElement("div");
+          el.className = "post";
+          el.innerHTML = `
+            <div class="handle">@${escapeHtml(handle)}</div>
+            <div class="text">${escapeHtml(text)}</div>
+            <div class="meta">
+              <span>❤️ ${likes}</span>
+              <span>🔁 ${reposts}</span>
+              <span>💬 ${replies}</span>
+              ${link ? `<span><a href="${link}" target="_blank" rel="noopener">Open</a></span>` : ""}
+            </div>
+          `;
+
+          postsEl.appendChild(el);
+          added++;
+        }
+
+        return added;
+      }
+
+      async function loadMore() {
+        if (loading) return;
+        loading = true;
+        setError(null);
+
+        loadBtn.disabled = true;
+        loadBtn.textContent = "Loading…";
+        setStatus("Fetching posts…");
+
+        try {
+          const data = await fetchPage();
+          const added = render(data.posts);
+          cursor = data.cursor ?? null;
+
+          if (!added && cursor) {
+            // Sometimes you can get duplicates between pages; try one more page automatically
+            const data2 = await fetchPage();
+            const added2 = render(data2.posts);
+            cursor = data2.cursor ?? cursor;
+            setStatus(added2 ? "" : "No new posts found.");
+          } else {
+            setStatus("");
+          }
+
+          if (!cursor) {
+            loadBtn.textContent = "No more results";
+            loadBtn.disabled = true;
+          } else {
+            loadBtn.textContent = "Load more";
+            loadBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus("");
+          setError(
+            "Couldn’t load posts. If this is a fresh deploy, confirm your Netlify Function exists at /.netlify/functions/hashtag and that BLUESKY_IDENTIFIER + BLUESKY_APP_PASSWORD env vars are set."
+          );
+          loadBtn.textContent = "Load more";
+          loadBtn.disabled = false;
+        } finally {
+          loading = false;
+        }
+      }
+
+      function resetAndReload() {
+        cursor = null;
+        seenUris = new Set();
+        postsEl.innerHTML = "";
+        loadBtn.disabled = false;
+        loadBtn.textContent = "Load more";
+        loadMore();
+      }
+
+      loadBtn.addEventListener("click", loadMore);
+      sortSel.addEventListener("change", resetAndReload);
+
+      // initial load
+      loadMore();
+    })();
+  </script>
+</body>
+</html>
