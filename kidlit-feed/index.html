@@ -9,10 +9,9 @@
     :root{
       --max-width:720px;
       --muted:#6b7280;
-      --card-border: rgba(15,23,42,0.08);
+      --card-border: rgba(15,23,42,0.10);
       --radius:12px;
     }
-    html,body{height:100%;}
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
@@ -22,28 +21,13 @@
       -moz-osx-font-smoothing:grayscale;
       line-height:1.35;
     }
-    .wrap{
-      max-width:var(--max-width);
-      margin:20px auto;
-      padding:18px;
-    }
-    .header{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:12px;
-    }
-    .brand{display:flex;flex-direction:column;gap:6px;}
-    .title{font-weight:800;font-size:18px;}
-    .subtitle{color:var(--muted);font-size:13px;}
-    .controls{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
+    .wrap{ max-width:var(--max-width); margin:20px auto; padding:18px; }
+    .header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .brand{ display:flex; flex-direction:column; gap:6px; }
+    .title{ font-weight:800; font-size:18px; }
+    .subtitle{ color:var(--muted); font-size:13px; }
+
+    .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
     select,button{
       padding:8px 12px;
       border-radius:10px;
@@ -52,9 +36,11 @@
       font-size:14px;
       cursor:pointer;
     }
-    button[disabled]{opacity:.6;cursor:default;}
-    #status{font-size:13px;color:var(--muted);margin:8px 0;min-height:18px;}
-    .error{color:#b91c1c;font-size:13px;margin:8px 0;display:none;}
+    button[disabled]{ opacity:.6; cursor:default; }
+
+    #status{ font-size:13px; color:var(--muted); margin:8px 0; min-height:18px; }
+    #error{ color:#b91c1c; font-size:13px; margin:8px 0; display:none; }
+
     .post{
       border:1px solid var(--card-border);
       border-radius:var(--radius);
@@ -62,8 +48,19 @@
       margin-bottom:12px;
       background: linear-gradient(180deg, #fff, #fafafa);
     }
-    .handle{font-weight:700;margin-bottom:6px;}
-    .text{white-space:pre-wrap;margin-bottom:8px;font-size:15px;}
+    .handle{ font-weight:700; margin-bottom:6px; }
+    .text{ white-space:pre-wrap; margin-bottom:8px; font-size:15px; }
+
+    .gallery{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .gallery img{
+      width:180px;
+      height:180px;
+      object-fit:cover;
+      border-radius:10px;
+      border:1px solid rgba(0,0,0,0.06);
+      background:#f8fafc;
+    }
+
     .meta{
       display:flex;
       gap:12px;
@@ -73,26 +70,12 @@
       font-size:12px;
       margin-top:10px;
     }
-    .meta a{color:inherit;text-decoration:underline;text-underline-offset:2px;}
-    .gallery{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      margin-top:8px;
-    }
-    .gallery img{
-      width:180px;
-      height:180px;
-      object-fit:cover;
-      border-radius:10px;
-      border:1px solid rgba(0,0,0,0.05);
-      background:#f8fafc;
-    }
-    footer{margin-top:18px;color:var(--muted);font-size:12px;}
+    .meta a{ color:inherit; text-decoration:underline; text-underline-offset:2px; }
+
     @media (max-width:520px){
-      .gallery img{width:130px;height:130px;}
-      .header{flex-direction:column;align-items:stretch;}
-      .controls{justify-content:flex-start;}
+      .gallery img{ width:130px; height:130px; }
+      .header{ flex-direction:column; align-items:stretch; }
+      .controls{ justify-content:flex-start; }
     }
   </style>
 </head>
@@ -101,7 +84,7 @@
     <div class="header">
       <div class="brand">
         <div class="title">#kidlitartpostcard</div>
-        <div class="subtitle">Feed pulled from Bluesky via your Netlify hashtag function. Images use public CDN URLs (no blob proxy needed).</div>
+        <div class="subtitle">Images use public Bluesky CDN URLs (no blob proxy).</div>
       </div>
 
       <div class="controls">
@@ -115,12 +98,8 @@
     </div>
 
     <div id="status"></div>
-    <div id="error" class="error"></div>
+    <div id="error"></div>
     <div id="posts" aria-live="polite"></div>
-
-    <footer>
-      If you see broken images, open one post JSON and confirm it includes <code>embed.images[].fullsize</code> or <code>thumb</code> URLs.
-    </footer>
   </div>
 
   <script>
@@ -144,15 +123,6 @@
         errorEl.style.display="block"; errorEl.textContent=msg;
       }
 
-      function escapeHtml(s){
-        return String(s || "")
-          .replaceAll("&","&amp;")
-          .replaceAll("<","&lt;")
-          .replaceAll(">","&gt;")
-          .replaceAll('"',"&quot;")
-          .replaceAll("'", "&#039;");
-      }
-
       function didFromUri(uri){
         const m = String(uri||"").match(/^at:\/\/([^/]+)\//);
         return m ? m[1] : null;
@@ -164,10 +134,8 @@
         return `https://bsky.app/profile/${did}/post/${rkey}`;
       }
 
-      // ✅ Key fix: use view embed CDN URLs returned by searchPosts
-      // The JSON you pasted included:
+      // Pull CDN images from the VIEW embed returned by searchPosts:
       // p.embed.$type === "app.bsky.embed.images#view"
-      // p.embed.images[i].fullsize / thumb
       function getCdnImagesFromPost(p){
         const out = [];
         const imgs = p?.embed?.images;
@@ -188,20 +156,17 @@
         url.searchParams.set("limit", String(LIMIT));
         if(cursor) url.searchParams.set("cursor", cursor);
 
-        const res = await fetch(url.toString(), { method: "GET" });
+        const res = await fetch(url.toString(), { method:"GET" });
         const text = await res.text().catch(()=> "");
         if(!res.ok){
-          try {
-            const j = JSON.parse(text);
-            throw new Error(j?.error || `Request failed: ${res.status}`);
-          } catch {
-            throw new Error(`Request failed: ${res.status}`);
-          }
+          try { throw new Error(JSON.parse(text)?.error || `Request failed: ${res.status}`); }
+          catch { throw new Error(`Request failed: ${res.status}`); }
         }
         try { return JSON.parse(text); }
         catch { throw new Error("Bad JSON from hashtag function"); }
       }
 
+      // ✅ DOM-based renderer so images always get appended
       function render(posts){
         let added = 0;
 
@@ -213,4 +178,112 @@
           const handle = p.author?.handle || "unknown";
           const text = p.record?.text || "";
           const likes = p.likeCount ?? 0;
-          c
+          const reposts = p.repostCount ?? 0;
+          const replies = p.replyCount ?? 0;
+          const link = postLinkFromUri(uri);
+
+          const el = document.createElement("article");
+          el.className = "post";
+
+          const h = document.createElement("div");
+          h.className = "handle";
+          h.textContent = "@" + handle;
+          el.appendChild(h);
+
+          if(text){
+            const t = document.createElement("div");
+            t.className = "text";
+            t.textContent = text;
+            el.appendChild(t);
+          }
+
+          const imgs = getCdnImagesFromPost(p);
+          if(imgs.length){
+            const g = document.createElement("div");
+            g.className = "gallery";
+
+            for(const im of imgs){
+              const img = document.createElement("img");
+              img.loading = "lazy";
+              img.alt = im.alt || "";
+              img.src = im.src;
+              g.appendChild(img);
+            }
+            el.appendChild(g);
+          }
+
+          const m = document.createElement("div");
+          m.className = "meta";
+          m.innerHTML = `
+            <span>❤️ ${likes}</span>
+            <span>🔁 ${reposts}</span>
+            <span>💬 ${replies}</span>
+            ${link ? `<span><a href="${link}" target="_blank" rel="noopener">Open</a></span>` : ""}
+          `;
+          el.appendChild(m);
+
+          postsEl.appendChild(el);
+          added++;
+        }
+
+        return added;
+      }
+
+      async function loadMore(){
+        if(loading) return;
+        loading = true;
+        setError(null);
+
+        loadBtn.disabled = true;
+        loadBtn.textContent = "Loading…";
+        setStatus("Fetching posts…");
+
+        try{
+          const data = await fetchPage();
+          const added = render(data.posts || []);
+          cursor = data.cursor ?? null;
+
+          // If we got duplicates only, try one more page
+          if(!added && cursor){
+            const data2 = await fetchPage();
+            render(data2.posts || []);
+            cursor = data2.cursor ?? cursor;
+          }
+
+          setStatus("");
+          if(!cursor){
+            loadBtn.textContent = "No more results";
+            loadBtn.disabled = true;
+          } else {
+            loadBtn.textContent = "Load more";
+            loadBtn.disabled = false;
+          }
+        } catch(err){
+          console.error(err);
+          setStatus("");
+          setError("Couldn’t load posts. Confirm /.netlify/functions/hashtag works and env vars are set in Netlify.");
+          loadBtn.textContent = "Load more";
+          loadBtn.disabled = false;
+        } finally {
+          loading = false;
+        }
+      }
+
+      function resetAndReload(){
+        cursor = null;
+        seenUris = new Set();
+        postsEl.innerHTML = "";
+        setError(null);
+        loadBtn.disabled = false;
+        loadBtn.textContent = "Load more";
+        loadMore();
+      }
+
+      loadBtn.addEventListener("click", loadMore);
+      sortSel.addEventListener("change", resetAndReload);
+
+      loadMore();
+    })();
+  </script>
+</body>
+</html>
